@@ -31,7 +31,7 @@ function App() {
       try {
         // const response = await fetch('http://127.0.0.1:8000/health');
 
-        fetch(`${API_URL}/health`)
+       const response = await fetch(`${API_URL}/health`);
         if (!response.ok) throw new Error('API unavailable');
         const data = await response.json();
         if (alive) {
@@ -58,7 +58,7 @@ function App() {
     abortRef.current = controller;
     try {
       // const res = await fetch('http://127.0.0.1:8000/api/ask', {
-      fetch(`${API_URL}/api/ask`, {
+      const res = await fetch(`${API_URL}/api/ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question, language }),
