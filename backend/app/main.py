@@ -21,25 +21,62 @@ from app.llm import LLMError, complete_json
 
 logger = logging.getLogger(__name__)
 
+# @asynccontextmanager
+# async def lifespan(app: FastAPI):
+#     app.state.chroma = chromadb.PersistentClient(path=str(CHROMA_DIR))
+#     app.state.index_error = None
+#     try:
+#         app.state.collection = app.state.chroma.get_collection("law_documents")
+#     except Exception:
+#         app.state.collection = None
+#     if app.state.collection is not None and app.state.collection.count() > 0:
+#         index_model = (app.state.collection.metadata or {}).get("embedding_model")
+#         if index_model != EMBEDDING_MODEL:
+#             app.state.index_error = (
+#                 f"The document index uses {index_model or 'an older embedding model'}, "
+#                 f"but the API is configured for {EMBEDDING_MODEL}. "
+#                 "Stop the API and run python -m app.ingest to rebuild the index."
+#             )
+#             logger.warning(app.state.index_error)
+#             app.state.collection = None
+#     yield
+
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.chroma = chromadb.PersistentClient(path=str(CHROMA_DIR))
+    app.state.chroma = None
+    app.state.collection = None
     app.state.index_error = None
+
     try:
+        app.state.chroma = chromadb.PersistentClient(path=str(CHROMA_DIR))
         app.state.collection = app.state.chroma.get_collection("law_documents")
-    except Exception:
+
+        if app.state.collection.count() == 0:
+            app.state.index_error = "The law_documents collection is empty."
+
+        else:
+            index_model = (
+                app.state.collection.metadata or {}
+            ).get("embedding_model")
+
+            if index_model != EMBEDDING_MODEL:
+                app.state.index_error = (
+                    f"The index uses {index_model or 'an unknown embedding model'}, "
+                    f"but the API uses {EMBEDDING_MODEL}."
+                )
+                app.state.collection = None
+
+    except Exception as exc:
+        logger.exception("ChromaDB startup failed")
         app.state.collection = None
-    if app.state.collection is not None and app.state.collection.count() > 0:
-        index_model = (app.state.collection.metadata or {}).get("embedding_model")
-        if index_model != EMBEDDING_MODEL:
-            app.state.index_error = (
-                f"The document index uses {index_model or 'an older embedding model'}, "
-                f"but the API is configured for {EMBEDDING_MODEL}. "
-                "Stop the API and run python -m app.ingest to rebuild the index."
-            )
-            logger.warning(app.state.index_error)
-            app.state.collection = None
+        app.state.index_error = f"ChromaDB startup failed: {type(exc).__name__}"
+
     yield
+
+
+
 
 app = FastAPI(title="Myanmar Law Document Chatbot", version="1.0.0", lifespan=lifespan)
 app.add_middleware(
