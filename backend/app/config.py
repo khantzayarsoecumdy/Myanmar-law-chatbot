@@ -5,7 +5,16 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parents[1]
 PROJECT_DATA = BASE_DIR / "data"
 DOCS_DIR = PROJECT_DATA / "documents"
-CHROMA_DIR = PROJECT_DATA / "chroma"
+# CHROMA_DIR = PROJECT_DATA / "chroma"
+
+# Local development uses the project database.
+# Vercel uses temporary writable storage.
+if os.getenv("VERCEL"):
+    CHROMA_DIR = Path("/tmp/chroma")
+else:
+    CHROMA_DIR = PROJECT_DATA / "chroma"
+
+    
 load_dotenv(BASE_DIR / ".env")
 
 OPENROUTER_URL = os.getenv(
