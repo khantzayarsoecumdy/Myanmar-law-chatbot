@@ -1,0 +1,11 @@
+backend/.env
+backend/.venv/
+backend/data/feedback/unanswered.jsonl
+backend/data/feedback/reviewed_qa.jsonl
+backend/data/feedback/finetune.jsonl
+backend/data/feedback/training_output/
+frontend/node_modules/
+frontend/dist/
+__pycache__/
+*.pyc
+.DS_Store

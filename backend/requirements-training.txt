@@ -1,0 +1,7 @@
+# Install this only in a separate CUDA-enabled Linux/WSL training environment.
+torch>=2.4
+transformers>=4.51,<5
+datasets>=3.0,<5
+trl>=0.24,<1
+peft>=0.18,<1
+accelerate>=1.0
