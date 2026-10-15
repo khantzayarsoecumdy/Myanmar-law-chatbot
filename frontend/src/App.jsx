@@ -8,7 +8,7 @@ const suggestions = [
   { title: 'လယ်ယာမြေ', prompt: 'လယ်ယာမြေလုပ်ပိုင်ခွင့်ဆိုတာ ဘာလဲ။ ထည့်ထားတဲ့ ဥပဒေစာရွက်စာတမ်းတွေကိုပဲ အခြေခံဖြေပါ။' },
   { title: 'Check document coverage', prompt: 'What topics are covered by the uploaded documents? Answer only from the indexed documents.' },
 ];
-
+const API_URL = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000').replace(/\/+$/, '');
 function App() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -29,7 +29,9 @@ function App() {
     let alive = true;
     const checkApi = async () => {
       try {
-        const response = await fetch('http://127.0.0.1:8000/health');
+        // const response = await fetch('http://127.0.0.1:8000/health');
+
+        fetch(`${API_URL}/health`)
         if (!response.ok) throw new Error('API unavailable');
         const data = await response.json();
         if (alive) {
@@ -55,7 +57,8 @@ function App() {
     const controller = new AbortController();
     abortRef.current = controller;
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/ask', {
+      // const res = await fetch('http://127.0.0.1:8000/api/ask', {
+      fetch(`${API_URL}/api/ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question, language }),
