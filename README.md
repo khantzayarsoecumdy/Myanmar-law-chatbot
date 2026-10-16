@@ -75,7 +75,7 @@ python -m app.ingest
 
 Wait until it prints the indexed chunk count and embedding model. The index uses Ollama's local `bge-m3` multilingual embedding model; make sure `ollama list` shows it. Changing the embedding model requires a full re-index. The API checks the model recorded in the index and reports when rebuilding is required.
 
-To add more documents, copy `.pdf`, `.docx`, or `.txt` files into `backend\data\documents\`, then stop the API and rerun `python -m app.ingest`. Scanned/image-only PDFs need OCR before indexing.
+To add more documents, copy `.pdf`, `.docx`, or `.txt` files into `backend\data\documents\`, then rerun `python -m app.ingest`. The running API sees the updated collection on the next request; normal ingests do not require stopping it. Scanned/image-only PDFs need OCR before indexing.
 
 ## 4. Start the backend API
 
@@ -123,35 +123,18 @@ Open the exact `Local:` URL printed by Vite, usually **http://localhost:5173**. 
 
 ## မဖြေနိုင်သောမေးခွန်းများနှင့် fine-tuning
 
-API က စာတမ်းထဲမှ တိုက်ရိုက်အထောက်အထားမရသည့်အခါ မေးခွန်း၊ အချိန်၊ မဖြေနိုင်ရသည့်အကြောင်းရင်းတို့ကို `backend\data\feedback\unanswered.jsonl` တွင် local အဖြစ်မှတ်ထားသည်။ တူညီသောမေးခွန်းကို ထပ်မေးလျှင်လည်း အကြိမ်တစ်ကြိမ်စီ မှတ်တမ်းတင်သည်။ Provider အလုပ်မလုပ်ခြင်းကိုလည်း သီးခြားအကြောင်းရင်းဖြင့် မှတ်ထားပြီး ၎င်းကို အဖြေမှန်အဖြစ် သင်တန်းဒေတာထဲ အလိုအလျောက်မထည့်ပါ။
+စာရွက်စာတမ်းထဲမှ အထောက်အထားမရသဖြင့် chatbot မဖြေနိုင်ခဲ့သော မေးခွန်းများကို local အဖြစ် မှတ်တမ်းတင်သည်။ Provider ပြတ်တောက်မှုကြောင့် ဖြစ်သောပြဿနာကို အဖြေမသိခြင်းနှင့် ခွဲထားပြီး training data ထဲ အလိုအလျောက်မထည့်ပါ။
 
-မေးခွန်းကို စာတမ်းနှင့်တိုက်စစ်ပြီး အဖြေမှန်ကို အတည်ပြုရန် backend folder ထဲမှ အောက်ပါ command ကို run ပါ။ စာတမ်းအမည်နှင့် အဖြေကိုထောက်ခံသော မူရင်းစာပိုဒ်ကို ထည့်ပေးရမည်။ အတည်ပြုထားသည့်အဖြေများသာ `reviewed_qa.jsonl` ထဲဝင်သည်။
+React UI ရှိ **Fine-tuning** ကိုဖွင့်ပြီး အောက်ပါအဆင့်များကို လုပ်ဆောင်နိုင်သည်။
 
-```powershell
-cd .\backend
-.\.venv\Scripts\Activate.ps1
-python -m app.review_feedback
-```
+1. စစ်ဆေးရန်စာရင်းမှ မေးခွန်းကိုရွေးပါ။
+2. စာတမ်းထဲက အဖြေ၊ စာတမ်းအမည်နှင့် အဖြေကိုထောက်ခံသော မူရင်းစာပိုဒ်ကို ဖြည့်ပါ။ အဖြေသည် မူရင်းစာပိုဒ်ထဲတွင် ပါဝင်ကြောင်း backend က စစ်ဆေးမည်။
+3. အချက်အလက်ကို စစ်ဆေးပြီးကြောင်း အမှတ်ခြစ်ကာ သိမ်းဆည်းပါ။ အတည်ပြုထားသောအဖြေများသာ training data ထဲဝင်မည်။
+4. Dataset ကိုပြင်ဆင်ပါ။ Training စတင်ရန် source စစ်ပြီး QA အနည်းဆုံး ၁၀ ခု လိုအပ်သည်။
+5. Base model နှင့် epoch ကိုရွေးပြီး **သင်ကြားမှု စတင်မည်** ကိုနှိပ်ပါ။ လုပ်ဆောင်မှုအခြေအနေနှင့် မှတ်တမ်းကို စာမျက်နှာတစ်ခုတည်းတွင် ကြည့်နိုင်သည်။
+6. Training အောင်မြင်လျှင် Ollama ထဲသို့ model ထည့်ပြီး fallback အဖြစ်ဖွင့်နိုင်သည်။
 
-အတည်ပြုထားသောအဖြေများကို training ဖိုင်အဖြစ်ပြင်ဆင်ရန်:
-
-```powershell
-python -m app.prepare_finetune
-```
-
-ဒီအဆင့်က `backend\data\feedback\finetune.jsonl` ကို ထုတ်ပေးသည်။ အဖြေကို ထည့်ထားသည့် source passage ထဲတွင် တကယ်ပါ/မပါ စစ်ဆေးပြီးမှ ထည့်သည်။ Training အတွက် မဖြေရှင်းရသေးသောမေးခွန်းကို သီးသန့်မသင်ပေးဘဲ၊ စာတမ်းထဲက အထောက်အထားနှင့် လူက စစ်ဆေးအတည်ပြုထားသော အဖြေကိုတွဲပေးရသည်။
-
-LoRA fine-tuning ကို CUDA GPU ရှိသော Linux သို့မဟုတ် WSL ပတ်ဝန်းကျင်တွင် လုပ်ရန် `backend\requirements-training.txt` ကို သီးခြား training environment ထဲ install လုပ်ပါ။ ထို့နောက် training data အနည်းဆုံး ၁၀ ခု စုဆောင်းပြီး:
-
-```bash
-python -m pip install -r requirements-training.txt
-python -m app.prepare_finetune
-python -m app.train_lora --base-model Qwen/Qwen2.5-7B-Instruct
-```
-
-Training က LoRA adapter နှင့် Ollama က import လုပ်နိုင်သော merged Safetensors model ကို `backend/data/feedback/training_output/` ထဲထုတ်ပေးသည်။ Training ပြီးပါက ဖန်တီးပေးထားသော `Modelfile` ကို အသုံးပြု၍ `ollama create myanmar-law-finetuned -f <Modelfile လမ်းကြောင်း>` ကို run လုပ်နိုင်သည်။ ထို့နောက် `backend\.env` ထဲက `OLLAMA_MODEL` ကို `myanmar-law-finetuned` ဟု ပြောင်းပြီး API ကို restart လုပ်ပါ။ Ollama တွင် import လုပ်နိုင်မှုသည် base architecture ကို ထောက်ပံ့မှုနှင့် training hardware ပေါ်မူတည်သည်။
-
-လက်ရှိပရောဂျက်တွင် မေးခွန်းမှတ်တမ်း၊ လူစစ်ဆေးသည့်အဆင့်၊ source passage ကိုစစ်ပြီး JSONL ထုတ်ပေးခြင်းနှင့် LoRA training script တို့ ပါဝင်သည်။ ဥပဒေစာတမ်းမှ အချက်အလက်အသစ်ကို chatbot သိစေရန် အဓိကနည်းမှာ စာတမ်းထည့်ပြီး `python -m app.ingest` ဖြင့် re-index လုပ်ခြင်းဖြစ်သည်။ Fine-tuning improves response style but does not replace document retrieval.
+LoRA training အတွက် CUDA အသုံးပြုနိုင်သော GPU နှင့် `backend/requirements-training.txt` ထဲရှိ packages များ ထည့်သွင်းထားသော Python ပတ်ဝန်းကျင် လိုအပ်သည်။ UI က လက်ရှိစက်၏ လိုအပ်ချက်များနှင့် မရှိသေးသော packages များကို ပြပေးမည်။ Fine-tuning သည် retrieval ကိုအစားမထိုးပါ။ စာတမ်းထဲမှ အချက်အလက်အသစ်ထည့်ရန် စာတမ်းများကို re-index လုပ်ပါ။
 
 ## Grounding and legal caution
 

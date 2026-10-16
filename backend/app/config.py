@@ -27,6 +27,7 @@ OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
 OLLAMA_EMBED_URL = os.getenv("OLLAMA_EMBED_URL", "http://localhost:11434/api/embed")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "bge-m3")
+FINETUNE_PYTHON = os.getenv("FINETUNE_PYTHON", "").strip()
 
 TOP_K = int(os.getenv("TOP_K", "8"))
 MIN_RELEVANCE = float(os.getenv("MIN_RELEVANCE", "0.34"))

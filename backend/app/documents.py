@@ -1,6 +1,9 @@
 from pathlib import Path
 from typing import Iterator
 from docx import Document
+from docx.oxml.ns import qn
+from docx.table import Table
+from docx.text.paragraph import Paragraph
 from pypdf import PdfReader
 
 SUPPORTED = {".pdf", ".docx", ".txt"}
@@ -11,14 +14,20 @@ def read_file(path: Path) -> str:
         return path.read_text(encoding="utf-8", errors="ignore")
     if suffix == ".docx":
         doc = Document(str(path))
-        chunks = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
-        for table in doc.tables:
-            for row in table.rows:
-                vals = [cell.text.strip() for cell in row.cells]
-                line = " | ".join(v for v in vals if v)
-                if line:
-                    chunks.append(line)
-        return "\n".join(chunks)
+        blocks = []
+        for child in doc.element.body.iterchildren():
+            if child.tag == qn("w:p"):
+                text = Paragraph(child, doc).text.strip()
+                if text:
+                    blocks.append(text)
+            elif child.tag == qn("w:tbl"):
+                table = Table(child, doc)
+                for row in table.rows:
+                    values = [cell.text.strip() for cell in row.cells]
+                    line = " | ".join(value for value in values if value)
+                    if line:
+                        blocks.append(line)
+        return "\n".join(blocks)
     if suffix == ".pdf":
         reader = PdfReader(str(path))
         pages = []

@@ -1,4 +1,5 @@
 from pathlib import Path
+import hashlib
 import chromadb
 from app.config import DOCS_DIR, CHROMA_DIR, EMBEDDING_MODEL
 from app.embedding import EmbeddingError, embed_texts
@@ -13,17 +14,21 @@ def main():
 
     client = chromadb.PersistentClient(path=str(CHROMA_DIR))
     ids, texts, metas = [], [], []
+    indexed_sources = set()
     for path in files:
         content = read_file(path)
         chunks = split_text(content)
         if not chunks:
             print(f"WARNING: no text extracted from {path.name}; scanned PDFs may need OCR.")
             continue
+        source = path.relative_to(DOCS_DIR).as_posix()
+        source_id = hashlib.sha256(source.encode("utf-8")).hexdigest()[:20]
+        indexed_sources.add(source)
         for idx, chunk in enumerate(chunks):
-            ids.append(f"{path.name}-{idx}")
+            ids.append(f"{source_id}-{idx + 1}")
             texts.append(chunk)
-            metas.append({"source": path.name, "chunk": idx + 1})
-        print(f"Read {path.name}: {len(chunks)} chunks")
+            metas.append({"source": source, "chunk": idx + 1})
+        print(f"Read {source}: {len(chunks)} chunks")
 
     if not texts:
         print("No readable text was found. Check your documents.")
@@ -43,29 +48,46 @@ def main():
         print("Embedding count did not match the document count; existing index was left untouched.")
         return
 
-    # Build all new vectors before replacing the old collection. If Ollama is
-    # unavailable or the model is missing, the existing index remains usable.
+    expected_metadata = {
+        "hnsw:space": "cosine",
+        "embedding_model": EMBEDDING_MODEL,
+        "embedding_dimension": len(embeddings[0]),
+    }
     try:
-        client.delete_collection("law_documents")
+        collection = client.get_collection("law_documents")
     except Exception:
-        pass
-    collection = client.create_collection(
-        name="law_documents",
-        metadata={
-            "hnsw:space": "cosine",
-            "embedding_model": EMBEDDING_MODEL,
-            "embedding_dimension": len(embeddings[0]),
-        },
-    )
+        collection = None
+
+    if collection is not None:
+        current_metadata = collection.metadata or {}
+        if any(current_metadata.get(key) != value for key, value in expected_metadata.items()):
+            client.delete_collection("law_documents")
+            collection = None
+
+    if collection is None:
+        collection = client.create_collection(
+            name="law_documents",
+            metadata=expected_metadata,
+        )
+
+    # Upsert in place so an API process that is already running can see new
+    # documents without holding a stale collection object after a rebuild.
     for start in range(0, len(texts), batch_size):
-        collection.add(
+        collection.upsert(
             ids=ids[start:start + batch_size],
             documents=texts[start:start + batch_size],
             metadatas=metas[start:start + batch_size],
             embeddings=embeddings[start:start + batch_size],
         )
+
+    desired_ids = set(ids)
+    existing = collection.get(include=["metadatas"])
+    stale_ids = [record_id for record_id in existing["ids"] if record_id not in desired_ids]
+    for start in range(0, len(stale_ids), batch_size):
+        collection.delete(ids=stale_ids[start:start + batch_size])
+
     print(
-        f"Indexed {len(texts)} chunks from {len(files)} document(s) with "
+        f"Indexed {len(texts)} chunks from {len(indexed_sources)} document(s) with "
         f"{EMBEDDING_MODEL} ({len(embeddings[0])} dimensions) into {CHROMA_DIR}"
     )
 

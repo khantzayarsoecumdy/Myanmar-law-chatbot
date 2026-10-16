@@ -9,6 +9,7 @@ SYSTEM_PROMPT = (
     "သင်သည် ထည့်သွင်းထားသော မြန်မာဥပဒေစာတမ်းများကိုသာ အခြေခံဖြေဆိုသော အကူအညီပေးစနစ်ဖြစ်သည်။ "
     "မေးခွန်းနှင့် တိုက်ရိုက်သက်ဆိုင်သည့် ပေးထားသောစာပိုဒ်မှသာ အဖြေကို ကောက်နုတ်ပါ။ "
     "စာပိုဒ်ထဲတွင် အဖြေမရှိလျှင် မရှိကြောင်းပြောပါ။ မခန့်မှန်းပါနှင့်၊ စာတမ်းပြင်ပဥပဒေအချက်အလက် မဖြည့်ပါနှင့်။"
+    
 )
 
 
@@ -40,7 +41,7 @@ def make_user_message(row: dict) -> str:
     )
 
 
-def main():
+def export_finetune_dataset() -> dict:
     rows = read_rows()
     messages = []
     seen = set()
@@ -57,12 +58,10 @@ def main():
             skipped += 1
             continue
         if compact(answer) not in compact(source_quote):
-            print(f"Skipping unsupported answer for: {question}")
             skipped += 1
             continue
         key = compact(question)
         if key in seen:
-            print(f"Skipping duplicate question: {question}")
             skipped += 1
             continue
         seen.add(key)
@@ -78,9 +77,18 @@ def main():
     with FINETUNE_PATH.open("w", encoding="utf-8", newline="\n") as handle:
         for row in messages:
             handle.write(json.dumps(row, ensure_ascii=False) + "\n")
-    print(f"Exported {len(messages)} source-checked example(s); skipped {skipped} row(s).")
-    print(f"Training file: {FINETUNE_PATH}")
-    if len(messages) < 10:
+    return {
+        "exported": len(messages),
+        "skipped": skipped,
+        "path": str(FINETUNE_PATH),
+    }
+
+
+def main():
+    result = export_finetune_dataset()
+    print(f"Exported {result['exported']} source-checked example(s); skipped {result['skipped']} row(s).")
+    print(f"Training file: {result['path']}")
+    if result["exported"] < 10:
         print("Collect more reviewed examples before training; the trainer requires 10 by default.")
 
 

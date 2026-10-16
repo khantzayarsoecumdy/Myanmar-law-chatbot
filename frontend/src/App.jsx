@@ -1,7 +1,8 @@
 
 import React from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUp, Plus, Scale, FileText, PanelLeftClose, Menu, Square, BookOpen } from 'lucide-react';
+import { ArrowUp, ArrowUpRight, Building2, FileText, Plus, Scale, PanelLeftClose, Menu, Square, BookOpen, GraduationCap, X } from 'lucide-react';
+import FineTuningPanel from './FineTuningPanel.jsx';
 
 const suggestions = [
   { title: 'Condominium Law', prompt: 'According to the uploaded Condominium Law, what does “Condominium” mean?' },
@@ -9,21 +10,45 @@ const suggestions = [
   { title: 'Check document coverage', prompt: 'What topics are covered by the uploaded documents? Answer only from the indexed documents.' },
 ];
 const API_URL = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000').replace(/\/+$/, '');
+const PSM_WELCOME_SHOWN_KEY = 'psm-welcome-promo-shown';
+const PSM_QUESTION_COUNT_KEY = 'psm-question-count';
+const PSM_TEN_QUESTION_SHOWN_KEY = 'psm-ten-question-promo-shown';
 function App() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [language, setLanguage] = useState('auto');
   const [busy, setBusy] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [page, setPage] = useState('chat');
   const [error, setError] = useState('');
   const [apiStatus, setApiStatus] = useState('checking');
-  const [topK, setTopK] = useState(null);
+  const [promoModal, setPromoModal] = useState(null);
   const bottomRef = useRef(null);
   const abortRef = useRef(null);
 
   useEffect(() => {
+    try {
+      if (window.localStorage.getItem(PSM_WELCOME_SHOWN_KEY) !== 'true') {
+        window.localStorage.setItem(PSM_WELCOME_SHOWN_KEY, 'true');
+        setPromoModal('welcome');
+      }
+    } catch {
+      setPromoModal('welcome');
+    }
+  }, []);
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, busy]);
+
+  useEffect(() => {
+    if (!promoModal) return undefined;
+    const closeOnEscape = event => {
+      if (event.key === 'Escape') setPromoModal(null);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [promoModal]);
 
   useEffect(() => {
     let alive = true;
@@ -36,7 +61,6 @@ function App() {
         const data = await response.json();
         if (alive) {
           setApiStatus(data.indexed ? 'ready' : 'not-indexed');
-          setTopK(Number.isInteger(data.top_k) ? data.top_k : null);
         }
       } catch {
         if (alive) setApiStatus('offline');
@@ -50,6 +74,16 @@ function App() {
   async function send(text = input) {
     const question = text.trim();
     if (!question || busy) return;
+    try {
+      const questionCount = Number(window.localStorage.getItem(PSM_QUESTION_COUNT_KEY) || 0) + 1;
+      window.localStorage.setItem(PSM_QUESTION_COUNT_KEY, String(questionCount));
+      if (questionCount >= 10 && window.localStorage.getItem(PSM_TEN_QUESTION_SHOWN_KEY) !== 'true') {
+        window.localStorage.setItem(PSM_TEN_QUESTION_SHOWN_KEY, 'true');
+        setPromoModal('after-ten');
+      }
+    } catch {
+      // Keep chat usable if browser storage is unavailable.
+    }
     setInput('');
     setError('');
     setMessages(old => [...old, { role: 'user', content: question }]);
@@ -103,8 +137,12 @@ function App() {
           <button className="icon-btn" title="Hide sidebar" onClick={() => setSidebarOpen(false)}><PanelLeftClose size={18}/></button>
         </div>
         <button className="new-chat" onClick={newChat}><Plus size={17}/> New chat <span>Ctrl K</span></button>
+        <nav className="sidebar-nav" aria-label="Main navigation">
+          <button className={`sidebar-link ${page === 'chat' ? 'active' : ''}`} onClick={() => setPage('chat')}><BookOpen size={16}/> မေးမြန်းရန်</button>
+          <button className={`sidebar-link ${page === 'finetune' ? 'active' : ''}`} onClick={() => setPage('finetune')}><GraduationCap size={16}/> Fine-tuning</button>
+        </nav>
         <div className="side-label">YOUR KNOWLEDGE BASE</div>
-        <div className="side-info"><BookOpen size={17}/><div><strong>Uploaded law documents</strong><small>{topK ? `Top K: ${topK} passages per search` : 'Local document search'}</small></div></div>
+        <div className="side-info"><BookOpen size={17}/><div><strong>Uploaded law documents</strong><small>Local document search</small></div></div>
         <div className="sidebar-bottom"><div className="privacy-dot"/><span>OpenRouter + Ollama</span><small>Local fallback on limits or outages</small></div>
       </aside>}
       <main className="main">
@@ -112,10 +150,11 @@ function App() {
           <div className="top-left">
             {!sidebarOpen && <button className="icon-btn" onClick={() => setSidebarOpen(true)}><Menu size={19}/></button>}
             <span className="mobile-brand"><Scale size={18}/> Law Assistant</span>
-            <span className="model-label">Document Chat <span className="chevron">⌄</span></span>
+            <span className="model-label">{page === 'chat' ? 'Document Chat' : 'Fine-tuning'}</span>
           </div>
           <div className={`local-pill status-${apiStatus}`} title={apiStatus === 'ready' ? 'Backend and document index are ready' : apiStatus === 'not-indexed' ? 'Backend is running, but documents have not been indexed' : apiStatus === 'offline' ? 'Start the backend API in a separate terminal' : 'Checking backend status'}><span/> {apiStatus === 'ready' ? 'AI ready' : apiStatus === 'not-indexed' ? 'Index documents' : apiStatus === 'offline' ? 'API offline' : 'Checking…'}</div>
         </header>
+        {page === 'chat' ? <>
         <section className={`conversation ${messages.length ? 'has-messages' : ''}`}>
           {messages.length === 0 ? <div className="welcome">
             <div className="welcome-mark"><Scale size={25}/></div>
@@ -129,7 +168,16 @@ function App() {
               {m.role === 'assistant' && <div className="avatar"><Scale size={16}/></div>}
               <div className="message-body">
                 {m.role === 'user' ? <div className="user-bubble">{m.content}</div> : <div className="answer-text">{m.content}</div>}
-                {m.sources?.length > 0 && <div className="sources"><div className="sources-heading"><FileText size={14}/> Sources from your documents</div><div className="source-list">{m.sources.map((s, j) => <div key={j} className="source-chip"><span>{s.document} · chunk {s.chunk}</span>{s.quote && <details><summary>See more</summary><blockquote>{s.quote}</blockquote></details>}</div>)}</div></div>}
+                {m.role === 'assistant' && m.sources?.length > 0 && <details className="sources">
+                  <summary className="sources-heading"><FileText size={15}/> Sources from your documents <span>{m.sources.length}</span></summary>
+                  <div className="source-list">{m.sources.map((s, j) => <section className="source-entry" key={`${s.document}-${s.chunk}-${j}`}>
+                    <div className="source-document"><FileText size={14}/><strong>{s.document}</strong></div>
+                    {s.quote && <details className="source-details">
+                      <summary>See more</summary>
+                      <blockquote className="source-content">{s.quote}</blockquote>
+                    </details>}
+                  </section>)}</div>
+                </details>}
               </div>
             </article>)}
             {busy && <div className="message assistant"><div className="avatar"><Scale size={16}/></div><div className="thinking"><span/><span/><span/> <em>Searching documents and preparing answer…</em></div></div>}
@@ -154,7 +202,22 @@ function App() {
           </div>
           <div className="disclaimer">AI can make mistakes. Verify important legal matters with a qualified professional.</div>
         </div>
+        </> : <FineTuningPanel />}
       </main>
+      {promoModal && <div className="psm-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setPromoModal(null); }}>
+        <section className="psm-modal" role="dialog" aria-modal="true" aria-labelledby="psm-modal-title" tabIndex={-1}>
+          <button className="psm-modal-close" onClick={() => setPromoModal(null)} aria-label="Close"><X size={18}/></button>
+          <div className="psm-modal-mark"><Building2 size={23}/></div>
+          <div className="psm-modal-brand">PROPERTY SEEKER MYANMAR</div>
+          <h2 id="psm-modal-title">{promoModal === 'after-ten'
+            ? <>ဥပဒေနှင့်အညီ လူကြီးမင်းတို့ကို ဝန်ဆောင်မှုအပြည့်အဝပေးနိုင်ရန်အတွက် <span>PSM</span> ရှိနေပါပြီ</>
+            : <>အိမ်ခြံမြေရောင်းဝယ်ငှားပြုလုပ်ဖို့ တွေးနေပြီဆိုရင် <span>PSM</span> ကို သတိရလိုက်ပါ</>}</h2>
+          <a className="psm-modal-visit" href="https://www.propertyseekermm.com/" target="_blank" rel="noopener noreferrer" onClick={() => setPromoModal(null)}>
+            PSM ဝဘ်ဆိုဒ်သို့ သွားရန် <ArrowUpRight size={17}/>
+          </a>
+          <button className="psm-modal-later" onClick={() => setPromoModal(null)}>နောက်မှ</button>
+        </section>
+      </div>}
     </div>
   );
 }
